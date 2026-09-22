@@ -3,7 +3,8 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from inspection.models import Inspection
+from inspection.models import Inspection, OverdueEvent, OverdueSetting
+from inspection.overdue import reconcile_overdue
 from inspection.rules import judge
 
 
@@ -84,3 +85,42 @@ def create_view(request):
             )
             return redirect("detail", pk=row.pk)
     return render(request, "form.html", {"error": error})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def overdue_view(request):
+    error = ""
+    if request.method == "POST":
+        if not _can_write(request.user):
+            return HttpResponseForbidden("仅持灯账号可调整逾期天数")
+        try:
+            days = int(request.POST.get("days", ""))
+            if days < 0:
+                raise ValueError("negative")
+        except (TypeError, ValueError):
+            error = "请填不小于 0 的整数天数"
+        else:
+            OverdueSetting.set_days(days)
+            return redirect("overdue")
+
+    rows = reconcile_overdue()
+    events = OverdueEvent.objects.select_related("source_inspection").all()
+    active_events = {
+        event.aid_code: event for event in events if not event.is_cleared
+    }
+    current_rows = [
+        {"inspection": row, "entered_at": active_events[row.aid_code].entered_at}
+        for row in rows
+        if row.aid_code in active_events
+    ]
+    return render(
+        request,
+        "overdue.html",
+        {
+            "current_rows": current_rows,
+            "events": events,
+            "days": OverdueSetting.get_days(),
+            "error": error,
+        },
+    )

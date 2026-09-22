@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}逾期灯 · 航标灯光巡检台{% endblock %}
+{% block body %}
+<h1>逾期灯</h1>
+
+<form class="card" method="post" style="max-width:520px">
+  {% csrf_token %}
+  <label>逾期天数门槛（不合格实测超过该天数仍无新的合格实测即收进逾期现表）</label>
+  {% if can_write %}
+  <div style="display:flex;gap:8px;align-items:center">
+    <input name="days" type="number" min="0" step="1" value="{{ days }}" style="width:120px" />
+    <button type="submit">保存</button>
+  </div>
+  {% if error %}<p class="err">{{ error }}</p>{% endif %}
+  {% else %}
+  <p>当前门槛：<strong>{{ days }}</strong> 天（只读账号不可修改）</p>
+  {% endif %}
+</form>
+
+<h2>逾期现表</h2>
+<table>
+  <thead><tr><th>灯号</th><th>实测光强</th><th>说明</th><th>所依不合格实测</th><th>实测时刻</th><th>进入时刻</th></tr></thead>
+  <tbody>
+  {% for item in current_rows %}
+    {% with row=item.inspection %}
+    <tr>
+      <td>{{ row.aid_code }}</td>
+      <td class="bad">{{ row.measured_cd }}</td>
+      <td>{{ row.note }}</td>
+      <td><a href="{% url 'detail' row.pk %}">#{{ row.pk }}</a></td>
+      <td>{{ row.created_at|date:"Y-m-d H:i" }}</td>
+      <td>{{ item.entered_at|date:"Y-m-d H:i:s" }}</td>
+    </tr>
+    {% endwith %}
+  {% empty %}
+    <tr><td colspan="6">当前没有逾期灯</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>逾期大事记</h2>
+<table>
+  <thead><tr><th>灯号</th><th>当时天数门槛</th><th>所依不合格实测</th><th>进入时刻</th><th>状态</th><th>解除时刻</th></tr></thead>
+  <tbody>
+  {% for event in events %}
+    <tr>
+      <td>{{ event.aid_code }}</td>
+      <td>{{ event.threshold_days }} 天</td>
+      <td><a href="{% url 'detail' event.source_inspection_id %}">#{{ event.source_inspection_id }}</a></td>
+      <td>{{ event.entered_at|date:"Y-m-d H:i" }}</td>
+      <td class="{% if event.is_cleared %}ok{% else %}bad{% endif %}">
+        {% if event.is_cleared %}已解除{% else %}逾期中{% endif %}
+      </td>
+      <td>{{ event.cleared_at|date:"Y-m-d H:i"|default:"—" }}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6">还没有大事记</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
