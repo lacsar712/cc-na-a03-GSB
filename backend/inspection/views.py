@@ -3,7 +3,8 @@ from django.http import HttpResponseForbidden
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_http_methods
 
-from inspection.models import Inspection
+from inspection.models import Inspection, OverdueEvent
+from inspection.overdue import get_threshold_days, set_threshold_days, sync_overdue
 from inspection.rules import judge
 
 
@@ -84,3 +85,32 @@ def create_view(request):
             )
             return redirect("detail", pk=row.pk)
     return render(request, "form.html", {"error": error})
+
+
+@login_required
+@require_http_methods(["GET", "POST"])
+def overdue_view(request):
+    error = ""
+    if request.method == "POST":
+        if not _can_write(request.user):
+            return HttpResponseForbidden("仅持灯账号可修改逾期天数")
+        try:
+            days = int(request.POST.get("threshold_days", ""))
+            if days < 0:
+                raise ValueError("negative")
+        except (TypeError, ValueError):
+            error = "请填不小于 0 的整数天数"
+        else:
+            set_threshold_days(days)
+            return redirect("overdue")
+    rows = sync_overdue()
+    return render(
+        request,
+        "overdue.html",
+        {
+            "rows": rows,
+            "events": OverdueEvent.objects.all(),
+            "threshold_days": get_threshold_days(),
+            "error": error,
+        },
+    )

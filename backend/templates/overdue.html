@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block body %}
+<h1>逾期灯</h1>
+{% if error %}<p class="err">{{ error }}</p>{% endif %}
+<p>当前天数门槛：{{ threshold_days }} 天（不合格实测超过该天数仍没有新的合格实测，即进入现表）</p>
+{% if can_write %}
+<form class="card" method="post">
+  {% csrf_token %}
+  <label>逾期天数门槛</label>
+  <input name="threshold_days" type="number" min="0" step="1" value="{{ threshold_days }}" />
+  <button type="submit">保存天数</button>
+</form>
+{% endif %}
+
+<h2>逾期现表</h2>
+<table>
+  <thead><tr><th>航标编号</th><th>实测光强</th><th>要求光强</th><th>说明</th><th>实测时刻</th><th></th></tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>{{ row.aid_code }}</td>
+      <td>{{ row.measured_cd }}</td>
+      <td>{{ row.required_cd }}</td>
+      <td class="bad">{{ row.note }}</td>
+      <td>{{ row.created_at|date:"Y-m-d H:i" }}</td>
+      <td><a href="{% url 'detail' row.pk %}">详情</a></td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="6">现表为空</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>逾期大事记</h2>
+<table>
+  <thead><tr><th>航标编号</th><th>当时天数门槛</th><th>所依实测</th><th>进入时刻</th><th>状态</th></tr></thead>
+  <tbody>
+  {% for ev in events %}
+    <tr>
+      <td>{{ ev.aid_code }}</td>
+      <td>{{ ev.threshold_days }} 天</td>
+      <td><a href="{% url 'detail' ev.inspection_id %}">#{{ ev.inspection_id }}</a></td>
+      <td>{{ ev.entered_at|date:"Y-m-d H:i" }}</td>
+      <td>{% if ev.resolved_at %}已解除（{{ ev.resolved_at|date:"Y-m-d H:i" }}）{% else %}<span class="bad">未解除</span>{% endif %}</td>
+    </tr>
+  {% empty %}
+    <tr><td colspan="5">还没有大事记</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
